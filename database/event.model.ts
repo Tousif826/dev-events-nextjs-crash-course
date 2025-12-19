@@ -69,7 +69,6 @@ const EventSchema = new Schema<EventDocument, EventModel>(
     },
     slug: {
       type: String,
-      required: true,
       unique: true,
       index: true,
       trim: true,
@@ -179,21 +178,36 @@ EventSchema.pre<EventDocument>('save', async function () {
   doc.date = normalizeDateToISO(doc.date);
   doc.time = normalizeTimeToHHMM(doc.time);
 
-  if (doc.isModified('title') || !doc.slug) {
-    const baseSlug = doc.title
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
+if (doc.isModified('title') || !doc.slug) {
+  const baseSlug = doc.title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 
-    doc.slug = baseSlug;
+  let finalSlug = baseSlug;
+  let counter = 1;
+
+  // 🔥 Check duplicates, auto-increment slug
+  const EventModel = doc.constructor as EventModel;
+
+  while (await EventModel.findOne({ slug: finalSlug })) {
+    finalSlug = `${baseSlug}-${counter++}`;
   }
+
+  doc.slug = finalSlug;
+}
 });
 
 
 
-const Event =
-  models.Event || model<EventDocument, EventModel>('Event', EventSchema);
+if (models.Event) {
+  delete models.Event; // 🔥 Clear old schema from hot-reload cache
+}
+
+const Event = model<EventDocument, EventModel>('Event', EventSchema);
+
 
 export default Event;
+export { Event };
